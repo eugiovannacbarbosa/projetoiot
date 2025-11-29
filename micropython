@@ -1,0 +1,82 @@
+import network
+from machine import Pin
+from time import sleep
+import ujson
+import dht
+from umqtt.simple import MQTTClient
+
+WIFI_SSID = "Wokwi-GUEST"
+WIFI_PASS = ""
+
+MQTT_ID_CLIENTE = "micropython-Giovanna"
+MQTT_BROKER = "broker.mqttdashboard.com"
+MQTT_TOPICO_TEMPERATURA = "Medindo-Temperatura"
+MQTT_TOPICO_AR = "Controle-Ar"
+MQTT_TOPICO_LUZ = "Controle-Luz"
+
+#sensores, entrada e saida. 
+pirPin = Pin(12, Pin.IN)
+ledPin = Pin(2, Pin.OUT)         
+dhtPin = Pin(13, Pin.IN)
+
+sensor_dht = dht.DHT22(Pin(13))
+
+#Conexão wifi
+print ("Conectando ao WIFI", end= "")
+sta_if = network.WLAN(network.STA_IF)
+sta_if.active(True)
+sta_if.connect('Wokwi-GUEST', '')
+while not sta_if.isconnected():
+
+  print(".", end="")
+
+
+print ("Conectado!")
+
+#Temperatura ideal
+TEMP_IDEAL = 23  
+
+#Conecção MQTT
+client = MQTTClient(MQTT_ID_CLIENTE, MQTT_BROKER)
+client.connect()
+
+print("Sistema Iniciado -Luz e Ar")
+
+#Luz acesa e ar, enquanto estiver com sensação de movimento luz e ar ligado
+while True:
+
+    if pirPin.value() == 1:
+        ledPin.value(1)  
+        print("Luz acesa")
+
+    else:
+        ledPin.value(0)  # Desliga a luz
+        print("Luz desligada")
+
+      
+    try:
+        sensor_dht.measure()
+        temperatura = sensor_dht.temperature()
+
+        print(f"Temperatura atual: {temperatura}°C")
+
+        dados_json = ujson.dumps({"temperatura": temperatura})
+        client.publish(MQTT_TOPICO_TEMPERATURA, dados_json)
+
+        
+        if temperatura > TEMP_IDEAL:
+            acao_ar = "LIGAR_AR"
+            print("Ligar ar condicionado")
+        else:
+            acao_ar = "DESLIGAR_AR"
+            print("Desligar ar condicionado")
+
+        client.publish(MQTT_TOPICO_AR, acao_ar)
+
+    except Exception as e:
+        print("Erro ao ler DHT22:", e)
+
+    sleep(600)
+
+
+
